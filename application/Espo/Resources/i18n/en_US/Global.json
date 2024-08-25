@@ -710,6 +710,7 @@
             "currentYear": "Current Year",
             "lastYear": "Last Year",
             "lastSevenDays": "Last 7 Days",
+            "nextSevenDays": "Next 7 Days",
             "lastXDays": "Last X Days",
             "nextXDays": "Next X Days",
             "ever": "Ever",
