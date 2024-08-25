@@ -86,11 +86,15 @@ class DateFieldView extends BaseFieldView {
     ]
 
     searchTypeList = [
-        'between',
         'lastSevenDays',
         'nextSevenDays',
         'ever',
         'isEmpty',
+        'currentWeek',
+        'lastWeek',
+        'lastXWeeks',
+        'nextWeek',
+        'nextXWeeks',
         'currentMonth',
         'lastMonth',
         'nextMonth',
@@ -109,11 +113,6 @@ class DateFieldView extends BaseFieldView {
         'after',
         'before',
         'between',
-        'currentWeek',
-        'lastWeek',
-        'lastXWeeks',
-        'nextWeek',
-        'nextXWeeks',
     ]
 
     initialSearchIsNotIdle = true

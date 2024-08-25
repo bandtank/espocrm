@@ -35,7 +35,6 @@ use Espo\Core\Field\DateTime;
 use Espo\Core\Select\Where\Item\Data;
 use Espo\Core\Select\Where\Item\Type;
 use Espo\Core\Select\Helpers\RandomStringGenerator;
-use Espo\Core\Select\Helpers\UserTimeZoneProvider;
 use Espo\Core\Utils\Config;
 use Espo\Core\Utils\DateTime as DateTimeUtil;
 use Espo\Core\Utils\Metadata;
@@ -67,8 +66,7 @@ class ItemGeneralConverter implements ItemConverter
         private RandomStringGenerator $randomStringGenerator,
         private ORMDefs $ormDefs,
         private Config $config,
-        private Metadata $metadata,
-        private UserTimeZoneProvider $userTimeZoneProvider,
+        private Metadata $metadata
     ) {}
 
     /**
