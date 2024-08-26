@@ -1144,14 +1144,23 @@ class ItemGeneralConverter implements ItemConverter
     private function processCurrentWeek(string $attribute, mixed $value, ?Data $data): array
     {
         $timeZone = $this->getTimeZone($data);
-        $today = DateTime::createNow()->withTimezone($timeZone);
-        $dayOfWeek = $today->getDayOfWeek();
         $weekStart = $this->config->get("weekStart", 0);
+
+        $days = $this->dateTimeUtil->getCurrentWeek($weekStart);
+
+        $today = DateTime::createNow()->withTimezone($timeZone);
+
+        $from = $today->withTime(0,0,0);
+        $from->setISODate($from->format("Y"), $from->format("W"), $weekStart);
+        $to = (clone $dtFrom)->modify("+1 week -1 second");
+
+        $from = $now->modify("-{$diff} days");
+        $to = $from->modify("+7 days");
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1176,15 +1185,35 @@ class ItemGeneralConverter implements ItemConverter
      * @return array<string|int, mixed>
      * @throws BadRequest
      */
-    private function processNextWeek(string $attribute): array
+    private function processNextWeek(string $attribute, mixed $value, ?Data $data): array
     {
+        $timeZone = $this->getTimeZone($data);
+        $today = DateTime::createNow()->withTimezone($timeZone);
+        $dayOfWeek = $today->getDayOfWeek();
+        $weekStart = $this->config->get("weekStart", 0);
+
+        $diff = 7;
+        if($weekStart <= $dayOfWeek)
+            $diff -= $dayOfWeek - $weekStart;
+        else
+            $diff -= 7 - $weekStart + $dayOfWeek;
+
+        $from = $now->modify("+{$diff} days");
+        $to = $from->modify("+7 days");
+
+        return [
+            'AND' => [
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
+            ]
+        ];
     }
 
     /**
      * @return array<string|int, mixed>
      * @throws BadRequest
      */
-    private function processNextXWeeks(string $attribute, $value): array
+    private function processNextXWeeks(string $attribute, mixed $value, ?Data $data): array
     {
     }
 
