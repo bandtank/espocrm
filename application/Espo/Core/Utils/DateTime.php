@@ -269,6 +269,31 @@ class DateTime
     }
 
     /**
+     * Get two date-time values for the beginning and end
+     * of the current week. Optionally set the week start
+     * (0 = Sunday). Use the default time zone.
+     */
+    public function getCurrentWeek(?string $timezone = null, int $weekStart = 0): array
+    {
+        try {
+            $tz = $timezone ? new DateTimeZone($timezone) : $this->timezone;
+        }
+        catch (Exception $e) {
+            throw new RuntimeException($e->getMessage());
+        }
+
+        $start = new DateTimeStd("now", $tz);
+        $start->setTime(0,0);
+        $start->setISODate($now->format("Y"), $now->format("W"), $weekStart);
+        $end = (clone $from)->modify("+1 week");
+
+        return array(
+            "start" => DateTimeField::fromDateTime($start),
+            "end" => DateTimeField::fromDateTime($end),
+        );
+    }
+
+    /**
      * Get a now date-time with the default time zone applied.
      *
      * @since 8.0.0
