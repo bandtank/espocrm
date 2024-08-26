@@ -66,8 +66,12 @@ class ItemGeneralConverter implements ItemConverter
         private RandomStringGenerator $randomStringGenerator,
         private ORMDefs $ormDefs,
         private Config $config,
-        private Metadata $metadata
-    ) {}
+        private Metadata $metadata,
+        private DateTimeUtil $dateTimeUtil,
+    ) {
+        $this->dateFormat = $this->dateTimeUtil->getInternalDateFormat();
+        $this->dateTimeFormat = $this->dateTimeUtil->getInternalDateTimeFormat();
+    }
 
     /**
      * @throws BadRequest
@@ -206,6 +210,10 @@ class ItemGeneralConverter implements ItemConverter
             return WhereClause::fromRaw($this->processLastSevenDays($attribute, $item->getData()));
         }
 
+        if ($type === Type::NEXT_SEVEN_DAYS) {
+            return WhereClause::fromRaw($this->processNextSevenDays($attribute, $item->getData()));
+        }
+
         if ($type === Type::LAST_X_DAYS) {
             return WhereClause::fromRaw($this->processLastXDays($attribute, $value, $item->getData()));
         }
@@ -220,6 +228,26 @@ class ItemGeneralConverter implements ItemConverter
 
         if ($type === Type::AFTER_X_DAYS) {
             return WhereClause::fromRaw($this->processAfterXDays($attribute, $value, $item->getData()));
+        }
+
+        if ($type === Type::CURRENT_WEEK) {
+            return WhereClause::fromRaw($this->processCurrentWeek($attribute, $value, $item->getData()));
+        }
+
+        if ($type === Type::LAST_WEEK) {
+            return WhereClause::fromRaw($this->processLastWeek($attribute, $value, $item->getData()));
+        }
+
+        if ($type === Type::LAST_X_WEEKS) {
+            return WhereClause::fromRaw($this->processLastXWeeks($attribute, $value, $item->getData()));
+        }
+
+        if ($type === Type::NEXT_WEEK) {
+            return WhereClause::fromRaw($this->processNextWeek($attribute, $value, $item->getData()));
+        }
+
+        if ($type === Type::NEXT_X_WEEKS) {
+            return WhereClause::fromRaw($this->processNextXWeeks($attribute, $value, $item->getData()));
         }
 
         if ($type === Type::CURRENT_MONTH) {
@@ -961,7 +989,7 @@ class ItemGeneralConverter implements ItemConverter
         $today = DateTime::createNow()->withTimezone($timeZone);
 
         return [
-            $attribute . '=' => $today->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+            $attribute . '=' => $today->toDateTime()->format($this->dateFormat),
         ];
     }
 
@@ -975,7 +1003,7 @@ class ItemGeneralConverter implements ItemConverter
         $today = DateTime::createNow()->withTimezone($timeZone);
 
         return [
-            $attribute . '<' => $today->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+            $attribute . '<' => $today->toDateTime()->format($this->dateFormat),
         ];
     }
 
@@ -989,7 +1017,7 @@ class ItemGeneralConverter implements ItemConverter
         $today = DateTime::createNow()->withTimezone($timeZone);
 
         return [
-            $attribute . '>' => $today->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+            $attribute . '>' => $today->toDateTime()->format($this->dateFormat),
         ];
     }
 
@@ -1006,8 +1034,27 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<=' => $today->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<=' => $today->toDateTime()->format($this->dateFormat),
+            ]
+        ];
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     * @throws BadRequest
+     */
+    private function processNextSevenDays(string $attribute, ?Data $data): array
+    {
+        $timeZone = $this->getTimeZone($data);
+        $today = DateTime::createNow()->withTimezone($timeZone);
+
+        $to = $today->addDays(7);
+
+        return [
+            'AND' => [
+                $attribute . '>=' => $today->toDateTime()->format($this->dateFormat),
+                $attribute . '<=' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1027,8 +1074,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<=' => $today->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<=' => $today->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1048,8 +1095,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $today->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<=' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $today->toDateTime()->format($this->dateFormat),
+                $attribute . '<=' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1068,7 +1115,7 @@ class ItemGeneralConverter implements ItemConverter
         $date = $today->addDays(- $number);
 
         return [
-            $attribute . '<' =>  $date->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+            $attribute . '<' =>  $date->toDateTime()->format($this->dateFormat),
         ];
     }
 
@@ -1086,8 +1133,88 @@ class ItemGeneralConverter implements ItemConverter
         $date = $today->addDays($number);
 
         return [
-            $attribute . '>' => $date->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+            $attribute . '>' => $date->toDateTime()->format($this->dateFormat),
         ];
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     * @throws BadRequest
+     */
+    private function processCurrentWeek(string $attribute, mixed $value, ?Data $data): array
+    {
+        $timeZone = $this->getTimeZone($data);
+        $weekStart = $this->config->get("weekStart", 0);
+
+        $days = $this->dateTimeUtil->getCurrentWeek($weekStart);
+
+        $today = DateTime::createNow()->withTimezone($timeZone);
+
+        $from = $today->withTime(0,0,0);
+        $from->setISODate($from->format("Y"), $from->format("W"), $weekStart);
+        $to = (clone $dtFrom)->modify("+1 week -1 second");
+
+        $from = $now->modify("-{$diff} days");
+        $to = $from->modify("+7 days");
+
+        return [
+            'AND' => [
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
+            ]
+        ];
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     * @throws BadRequest
+     */
+    private function processLastWeek(string $attribute, mixed $value, ?Data $data): array
+    {
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     * @throws BadRequest
+     */
+    private function processLastXWeeks(string $attribute, mixed $value, ?Data $data): array
+    {
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     * @throws BadRequest
+     */
+    private function processNextWeek(string $attribute, mixed $value, ?Data $data): array
+    {
+        $timeZone = $this->getTimeZone($data);
+        $today = DateTime::createNow()->withTimezone($timeZone);
+        $dayOfWeek = $today->getDayOfWeek();
+        $weekStart = $this->config->get("weekStart", 0);
+
+        $diff = 7;
+        if($weekStart <= $dayOfWeek)
+            $diff -= $dayOfWeek - $weekStart;
+        else
+            $diff -= 7 - $weekStart + $dayOfWeek;
+
+        $from = $now->modify("+{$diff} days");
+        $to = $from->modify("+7 days");
+
+        return [
+            'AND' => [
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
+            ]
+        ];
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     * @throws BadRequest
+     */
+    private function processNextXWeeks(string $attribute, mixed $value, ?Data $data): array
+    {
     }
 
     /**
@@ -1103,8 +1230,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1122,8 +1249,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1141,8 +1268,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1165,8 +1292,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1196,8 +1323,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1215,8 +1342,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1234,8 +1361,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1262,8 +1389,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1291,8 +1418,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1318,8 +1445,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
@@ -1346,8 +1473,8 @@ class ItemGeneralConverter implements ItemConverter
 
         return [
             'AND' => [
-                $attribute . '>=' => $from->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
-                $attribute . '<' => $to->toDateTime()->format(DateTimeUtil::SYSTEM_DATE_FORMAT),
+                $attribute . '>=' => $from->toDateTime()->format($this->dateFormat),
+                $attribute . '<' => $to->toDateTime()->format($this->dateFormat),
             ]
         ];
     }
