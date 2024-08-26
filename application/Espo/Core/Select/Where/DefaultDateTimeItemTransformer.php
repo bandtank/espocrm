@@ -337,7 +337,10 @@ class DefaultDateTimeItemTransformer implements DateTimeItemTransformer
             case Type::NEXT_WEEK:
             case Type::NEXT_X_WEEKS:
                 $weekStart = $this->config->get("weekStart", 0);
-                $dayOfWeek = intval($dt->format('w'));
+
+                $from = (clone $dt)->setTime(0,0);
+                $from->setISODate($from->format("Y"), $from->format("W"), $weekStart);
+                $to = (clone $dtFrom)->modify("+1 week -1 second");
 
                 if ($type == Type::LAST_WEEK) {
                     $from->modify("-1 week");
@@ -353,7 +356,7 @@ class DefaultDateTimeItemTransformer implements DateTimeItemTransformer
                     $number = strval(intval($value));
                     $from->modify("+1 week");
                     $to->modify("+{$number} weeks");
-                }
+                } # else $type == Type::CURRENT_WEEK
 
                 $where['type'] = Type::BETWEEN;
                 $where['value'] = [$from->format($format), $to->format($format)];
